@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommendations Wall - Cloud Storage Demo</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Recommendations Wall</h1>
+            <p>Cloud Storage Demo: Each review = 1 JSON file in object storage!</p>
+        </div>
+
+        <div class="card">
+            <h2>🎯 Top Tags Right Now</h2>
+            <div class="stats" id="stats"></div>
+        </div>
+
+        <div class="card">
+            <h2>✍️ Add Your Recommendation</h2>
+            <form id="reviewForm">
+                <div class="form-group">
+                    <label>What are you recommending? *</label>
+                    <input type="text" id="title" placeholder="e.g., The Matrix, Chocolate Cake, Python" required>
+                </div>
+                <div class="form-group">
+                    <label>Tag/Genre *</label>
+                    <input type="text" id="tag" placeholder="e.g., Movie, Recipe, Language" required>
+                </div>
+                <div class="form-group">
+                    <label>Rating *</label>
+                    <div class="stars" id="stars">
+                        <span class="star" data-value="1">★</span>
+                        <span class="star" data-value="2">★</span>
+                        <span class="star" data-value="3">★</span>
+                        <span class="star" data-value="4">★</span>
+                        <span class="star" data-value="5">★</span>
+                    </div>
+                    <input type="hidden" id="rating" required>
+                </div>
+                <div class="form-group">
+                    <label>Comment (optional)</label>
+                    <textarea id="comment" placeholder="What did you like about it?"></textarea>
+                </div>
+                <button type="submit">Submit to Cloud ☁️</button>
+                <div id="message"></div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>💾 Example: How Your Review is Stored</h2>
+            <p>When you submit, the API creates a JSON file like this in Cloudflare R2:</p>
+            <div class="example-json">
+<span class="json-key">{
+  "id"</span>: <span class="json-string">"a1b2c3d4-1234-5678-9abc-def012345678"</span>,
+  <span class="json-key">"title"</span>: <span class="json-string">"The Matrix"</span>,
+  <span class="json-key">"tag"</span>: <span class="json-string">"Movie"</span>,
+  <span class="json-key">"stars"</span>: <span class="json-number">5</span>,
+  <span class="json-key">"comment"</span>: <span class="json-string">"Mind-bending action!"</span>,
+  <span class="json-key">"timestamp"</span>: <span class="json-string">"2025-11-11T14:30:00Z"</span>
+}</div>
+            <p class="storage-path">
+                📁 Saved as: <code>reviews/a1b2c3d4-1234-5678-9abc-def012345678.json</code>
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>📖 Recent Reviews</h2>
+            <div class="reviews-list" id="reviews"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let selectedRating = 0;
+
+        // Star rating interaction
+        document.querySelectorAll('.star').forEach(star => {
+            star.addEventListener('click', function() {
+                selectedRating = parseInt(this.dataset.value);
+                document.getElementById('rating').value = selectedRating;
+                document.querySelectorAll('.star').forEach((s, i) => {
+                    s.classList.toggle('active', i < selectedRating);
+                });
+            });
+        });
+
+        // Load stats and reviews
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_URL}/top`);
+                const data = await response.json();
+                
+                // Display stats
+                const statsHtml = data.top_tags.slice(0, 4).map(item => `
+                    <div class="stat-card">
+                        <h3>${item.tag}</h3>
+                        <div class="number">${item.count}</div>
+                        <div>${'⭐'.repeat(Math.round(item.avg_stars))}</div>
+                    </div>
+                `).join('');
+                document.getElementById('stats').innerHTML = statsHtml || '<p>No recommendations yet!</p>';
+
+                // Display recent reviews
+                const reviewsHtml = data.recent_reviews.map(review => `
+                    <div class="review-item">
+                        <div class="review-header">
+                            <span class="review-title">${review.title}</span>
+                            <span class="review-tag">${review.tag}</span>
+                        </div>
+                        <div>${'⭐'.repeat(review.stars)}</div>
+                        ${review.comment ? `<p style="margin-top: 8px; color: #666;">${review.comment}</p>` : ''}
+                    </div>
+                `).join('');
+                document.getElementById('reviews').innerHTML = reviewsHtml || '<p>Be the first to recommend something!</p>';
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        // Submit form
+        document.getElementById('reviewForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageEl = document.getElementById('message');
+            
+            if (!selectedRating) {
+                messageEl.innerHTML = '<div class="error">Please select a rating!</div>';
+                return;
+            }
+
+            const review = {
+                title: document.getElementById('title').value,
+                tag: document.getElementById('tag').value,
+                stars: selectedRating,
+                comment: document.getElementById('comment').value || null
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/reviews`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(review)
+                });
+
+                if (response.ok) {
+                    messageEl.innerHTML = '<div class="success">✅ Saved to cloud storage!</div>';
+                    e.target.reset();
+                    selectedRating = 0;
+                    document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
+                    setTimeout(() => loadData(), 500);
+                } else {
+                    const error = await response.json();
+                    messageEl.innerHTML = `<div class="error">❌ ${error.detail}</div>`;
+                }
+            } catch (error) {
+                messageEl.innerHTML = '<div class="error">❌ Connection error</div>';
+            }
+        });
+
+        // Load data on page load
+        loadData();
+        setInterval(loadData, 30000); // Refresh every 30 seconds
+    </script>
+</body>
+</html>
