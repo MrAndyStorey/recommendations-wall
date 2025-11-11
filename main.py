@@ -26,7 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# R2/S3-compatible client setup (Cloudflare R2)
 # Students: these credentials come from environment variables for security
 s3_client = boto3.client(
     's3',
