@@ -18,6 +18,15 @@
             <div class="stats" id="stats"></div>
         </div>
 
+        <!-- ============================================
+             CHART SECTION - Change style="display: none;" to style="display: block;"
+             to reveal the chart during your live demo!
+             ============================================ -->
+        <div class="card" id="chartCard" style="display: block;">
+            <h2>📊 Tag Visualization</h2>
+            <canvas id="tagChart" style="max-height: 300px;"></canvas>
+        </div>
+
         <div class="card">
             <h2>✍️ Add Your Recommendation</h2>
             <form id="reviewForm">
@@ -72,9 +81,13 @@
         </div>
     </div>
 
+    <!-- Chart.js Library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
     <script>
         const API_URL = window.location.origin;
         let selectedRating = 0;
+        let tagChart = null; // Store chart instance so we can update it
 
         // Star rating interaction
         document.querySelectorAll('.star').forEach(star => {
@@ -87,11 +100,114 @@
             });
         });
 
-        // Load stats and reviews
+        // ============================================
+        // CHART FUNCTION: Create/Update Chart
+        // Students: Try changing 'bar' to 'line', 'pie', or 'doughnut'!
+        // ============================================
+        function updateChart(topTags) {
+            const ctx = document.getElementById('tagChart');
+            
+            // If no data yet, don't show chart
+            if (!topTags || topTags.length === 0) {
+                return;
+            }
+            
+            // Extract data for the chart (top 8 tags)
+            const labels = topTags.slice(0, 8).map(item => item.tag);
+            const counts = topTags.slice(0, 8).map(item => item.count);
+            const avgStars = topTags.slice(0, 8).map(item => item.avg_stars);
+            
+            // If chart already exists, update it instead of creating new one
+            if (tagChart) {
+                tagChart.data.labels = labels;
+                tagChart.data.datasets[0].data = counts;
+                tagChart.data.datasets[1].data = avgStars;
+                tagChart.update();
+                return;
+            }
+            
+            // Create new chart
+            tagChart = new Chart(ctx, {
+                type: 'bar', // 🎨 TRY: Change to 'line', 'pie', 'doughnut', 'radar'
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '# of Reviews',
+                            data: counts,
+                            backgroundColor: 'rgba(102, 126, 234, 0.8)', // 🎨 TRY: Change colors!
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Avg Stars',
+                            data: avgStars,
+                            backgroundColor: 'rgba(255, 193, 7, 0.8)', // 🎨 TRY: Change colors!
+                            borderColor: 'rgba(255, 193, 7, 1)',
+                            borderWidth: 2,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Review Counts & Average Ratings by Tag',
+                            font: { size: 16 }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Number of Reviews'
+                            },
+                            beginAtZero: true
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Average Stars'
+                            },
+                            min: 0,
+                            max: 5,
+                            grid: {
+                                drawOnChartArea: false,
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ============================================
+        // Load stats, reviews, and UPDATE CHART
+        // ============================================
         async function loadData() {
             try {
                 const response = await fetch(`${API_URL}/top`);
                 const data = await response.json();
+                
+                // Update the chart with new data
+                updateChart(data.top_tags);
                 
                 // Display stats
                 const statsHtml = data.top_tags.slice(0, 4).map(item => `
@@ -149,7 +265,7 @@
                     e.target.reset();
                     selectedRating = 0;
                     document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
-                    setTimeout(() => loadData(), 500);
+                    setTimeout(() => loadData(), 500); // This will update the chart too!
                 } else {
                     const error = await response.json();
                     messageEl.innerHTML = `<div class="error">❌ ${error.detail}</div>`;
@@ -161,7 +277,7 @@
 
         // Load data on page load
         loadData();
-        setInterval(loadData, 30000); // Refresh every 30 seconds
+        setInterval(loadData, 30000); // Refresh every 30 seconds (chart updates too!)
     </script>
 </body>
 </html>
