@@ -2,3 +2,4 @@ R2_ENDPOINT_URL=https://abc123.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=a1b2c3d4e5f6
 R2_SECRET_ACCESS_KEY=your-secret-here
 R2_BUCKET_NAME=recommendations-wall
+PYTHON_VERSION=3.11.9
